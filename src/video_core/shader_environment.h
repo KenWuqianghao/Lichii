@@ -109,9 +109,9 @@ protected:
 
     /// Adopts an already lowered native program, or captures and lowers it when there is none.
     void InitializeNativeCode(std::shared_ptr<const LoweredNativeCode> lowered,
-                              u32 source_header_size = 128, bool geometry_stage = false);
+                              u32 source_header_size, bool geometry_stage, bool emulate_tensor);
     std::shared_ptr<const LoweredNativeCode> LowerNativeCode(u32 source_header_size,
-                                                          bool geometry_stage);
+                                                          bool geometry_stage, bool emulate_tensor);
     size_t native_source_size{};
     std::shared_ptr<const LoweredNativeCode> lowered_native;
 

@@ -8,8 +8,12 @@ This is separate from the presentation filters that scale the finished window im
 Fire Emblem uses the jitter-only spatial workaround by default. Explicit `fsr` and `dlss`
 comparison modes enable temporal replacement for its validated input contract. The upstream
 temporal blend and RCAS fallback remain available if a temporal backend is unavailable.
-Invalid consumed inputs leave the native dispatch enabled. An already-rejected native
-tensor shader remains an explicit dispatch failure. General tensor emulation remains.
+Invalid consumed inputs leave the native dispatch enabled.
+
+Matrix multiplies (HMMA) in other native compute programs are emulated only when "Use the
+game's own DLSS" is on, and always for Fire Emblem, Star Fox and Donkey Kong Bananza.
+Otherwise the program is rejected and a bilinear blit of its input image to its output
+image stands in for it.
 
 ## Supported input contract
 

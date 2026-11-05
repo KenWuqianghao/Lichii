@@ -365,7 +365,7 @@ struct Values {
                                                     true,
                                                     true};
     // A Switch 2 game's own DLSS network (translated) in place of AMD FSR 3.1, where it runs and
-    // its output passes the checks.
+    // its output passes the checks. Off, other games' tensor programs get an upscale stand-in.
     SwitchableSetting<bool> game_dlss_network{linkage, false, "game_dlss_network",
                                               Category::Renderer};
     SwitchableSetting<int, true> fsr_sharpening_slider{linkage,

@@ -464,9 +464,10 @@ private:
 // A native program is captured and lowered once, when the shader cache first meets it. The
 // environments built later for its pipelines receive that result instead of lowering again.
 void GenericEnvironment::InitializeNativeCode(std::shared_ptr<const LoweredNativeCode> lowered,
-                                              u32 source_header_size, bool geometry_stage) {
+                                              u32 source_header_size, bool geometry_stage,
+                                              bool emulate_tensor) {
     if (!lowered) {
-        lowered = LowerNativeCode(source_header_size, geometry_stage);
+        lowered = LowerNativeCode(source_header_size, geometry_stage, emulate_tensor);
     }
     if (!Shader::Ampere::VerifyTrapGuards(lowered->trap_prefix, [&](u32 bank, u32 offset) {
             return ReadTrapGuardConstant(bank, offset);
@@ -484,7 +485,8 @@ void GenericEnvironment::InitializeNativeCode(std::shared_ptr<const LoweredNativ
 }
 
 std::shared_ptr<const LoweredNativeCode> GenericEnvironment::LowerNativeCode(u32 source_header_size,
-                                                                         bool geometry_stage) {
+                                                                         bool geometry_stage,
+                                                                         bool emulate_tensor) {
     using Shader::Ampere::Instruction;
     const u32 native_header_size = source_header_size;
     constexpr u32 maximum_instructions = Shader::Ampere::ProgramCaptureState::MaximumInstructions;
@@ -540,7 +542,8 @@ std::shared_ptr<const LoweredNativeCode> GenericEnvironment::LowerNativeCode(u32
                                        : Shader::Ampere::TessellationStage::None;
     auto lowered = Shader::Ampere::LowerToMaxwell(
         native, {.geometry = geometry_stage,
-                 .matrix_multiply = Shader::Ampere::MatrixMultiply::Compact,
+                 .matrix_multiply = emulate_tensor ? Shader::Ampere::MatrixMultiply::Compact
+                                                   : Shader::Ampere::MatrixMultiply::Reject,
                  .native_code_address = program_base + native_header_size,
                  .verified_traps = verified_traps,
                  .tessellation_stage = tessellation_stage});
@@ -845,7 +848,7 @@ GraphicsEnvironment::GraphicsEnvironment(Tegra::Engines::Maxwell3D& maxwell3d_,
                      static_cast<u32>(regs.tessellation.params.output_primitives.Value()),
                      regs.patch_vertices);
         }
-        InitializeNativeCode(std::move(lowered_native_), 128, geometry);
+        InitializeNativeCode(std::move(lowered_native_), 128, geometry, true);
     }
     const u64 local_size{sph.LocalMemorySize()};
     ASSERT(local_size <= (std::numeric_limits<u32>::max)());
@@ -939,7 +942,8 @@ ComputeEnvironment::ComputeEnvironment(Tegra::Engines::KeplerCompute& kepler_com
     if (kepler_compute->IsNativeMode()) {
         initial_offset = sizeof(sph);
         is_proprietary_driver = true;
-        InitializeNativeCode(std::move(lowered_native_), 0);
+        InitializeNativeCode(std::move(lowered_native_), 0, false,
+                             kepler_compute->EmulatesNativeTensorPrograms());
         start_address = sizeof(sph);
     }
 }

@@ -13,6 +13,7 @@
 #include <optional>
 #include <span>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 #include "common/bit_field.h"
 #include "common/common_funcs.h"
@@ -245,6 +246,9 @@ public:
     }
 
     bool IsNativeMode() const { return native_mode; }
+    /// Whether matrix multiplies (HMMA) in native compute programs are emulated. Otherwise those
+    /// programs are rejected and an upscale stands in for them.
+    [[nodiscard]] bool EmulatesNativeTensorPrograms() const;
     bool ProcessGameDlss(u64 program_id, u64 native_key);
     void TraceDlssContract(u64 native_key, bool warn_unvalidated = true);
 
@@ -278,6 +282,8 @@ private:
     void CheckDlssNetwork();
     [[nodiscard]] VideoCore::GameDlssReason GameDlssBlocker() const;
     void UpdateGameDlssStatus(bool complete, VideoCore::GameDlssReason blocker);
+    const std::pair<std::vector<u32>, std::vector<u32>>& NativeImageHandles(GPUVAddr program);
+    bool UpscaleInsteadOfNativeProgram();
 
     /// This frame's DLSS evaluation (Fortune's Weave): whether its passes all ran, and whether
     /// the game's own network output is shown instead of the replacement upscale.
