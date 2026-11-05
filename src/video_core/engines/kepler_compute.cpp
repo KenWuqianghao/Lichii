@@ -1154,8 +1154,10 @@ bool KeplerCompute::UpscaleInsteadOfNativeProgram() {
         }
         return GetTICEntry(tic_index);
     };
-    // An upscale keeps the aspect ratio and scales by at most 4: anything else (a 4x4 lookup
-    // table, a 120x67 luminance image) is another image the program happens to use.
+    // A network keeps the aspect ratio and scales by 1 to 4: anything else (a 4x4 lookup table, a
+    // 120x67 luminance image) is another image the program happens to use. Only images the program
+    // itself reads and stores to can keep their size (Ocarina of Time's gameplay network, the first
+    // pass of its video upscale): the cbuf0 guesses do not show which way the data goes.
     const auto upscale_pair = [](const std::optional<Texture::TICEntry>& from,
                                  const std::optional<Texture::TICEntry>& to, bool same_format = true) {
         if (!from || !to || (same_format && from->format != to->format) || from->Address() == 0 ||
@@ -1165,11 +1167,11 @@ bool KeplerCompute::UpscaleInsteadOfNativeProgram() {
         const u64 from_width = from->Width(), from_height = from->Height();
         const u64 to_width = to->Width(), to_height = to->Height();
         const u64 cross_a = to_width * from_height, cross_b = to_height * from_width;
-        return from_width >= 64 && to_width > from_width && to_width <= from_width * 4 &&
+        return from_width >= 64 && to_width >= from_width && to_width <= from_width * 4 &&
                (cross_a > cross_b ? cross_a - cross_b : cross_b - cross_a) * 32 <= cross_a;
     };
     std::optional<Texture::TICEntry> input = image(0x90), output = image(0xa0);
-    if (!upscale_pair(input, output)) {
+    if (!upscale_pair(input, output) || input->Width() == output->Width()) {
         // The input is the largest read image that the output upscales, the output's format first.
         const auto& [reads, stores] = NativeImageHandles(program);
         input.reset();
@@ -1198,7 +1200,7 @@ bool KeplerCompute::UpscaleInsteadOfNativeProgram() {
             for (u32 second = first + 4; from && second < 0x120; second += 4) {
                 if (handle(second).value_or(0) == 0) continue;
                 const auto to = image(second);
-                if (upscale_pair(from, to)) {
+                if (upscale_pair(from, to) && to->Width() > from->Width()) {
                     input = from;
                     output = to;
                     break;
