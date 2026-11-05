@@ -16,6 +16,36 @@ Lichii is an experimental, open-source Nintendo Switch and Switch 2 emulator wri
 
 This is an independent fork, not an official release of those upstream projects. Lichii is not affiliated with Nintendo.
 
+## Deck optimizations branch
+
+The `deck-optimizations` branch adds four commits to [zortos293/Lichii](https://github.com/zortos293/Lichii) `nx2`. They make The Legend of Zelda: Ocarina of Time (0400486024DEC000) playable on GPUs that are too slow to emulate its upscaling network, such as the Steam Deck.
+
+The game runs its upscaler as a tensor-core network. Lichii emulates that network in software, which costs about 127 ms per frame on a Steam Deck. With these commits, a network program is rejected unless "Use the game's own DLSS" is on. A bilinear copy of the network's input to its output takes its place, as upstream Eglantine does for other games.
+
+| Commit | Change |
+|---|---|
+| `video_core: let a 2D blit read its source as a format the 2D engine lacks` | Port of Eglantine PR #614. The copy can read the E5B9G9R9 gameplay frame. |
+| `shader: let the Ampere lowering reject matrix multiplies` | The shader lowering can reject a matrix multiply (HMMA) in place of emulating it. |
+| `video_core: stand in for tensor programs unless the game's own DLSS is on` | Network programs are rejected and the bilinear copy draws in their place. Donkey Kong Bananza and Fire Emblem: Fortune's Weave still emulate their networks. |
+| `video_core: upscale stand-in copies a network that keeps the frame's size` | Ocarina of Time's gameplay and video networks keep the 1920x1080 size. Without this change, gameplay and videos are black. |
+
+Results on a Steam Deck (LCD, 15 W, docked at 1920x1080, Linux build):
+
+| Scene | `nx2` | This branch |
+|---|---|---|
+| Title screen | 7.6 fps | 56.6 fps |
+| Gameplay, GPU mode Accurate (default) | Not measured | 6.5 fps |
+| Gameplay, GPU mode Fast | Not measured | 14.4 fps |
+
+The game's own network gives a sharper image than the bilinear copy. To use it, turn on "Use the game's own DLSS" in the graphics settings.
+
+For better gameplay speed, set the GPU mode to Fast for this game only:
+
+1. Right-click the game and select "Configure Game".
+2. On the "Adv. Graphics" tab, set "GPU Mode" to "Fast".
+
+On the Deck, this change doubles the gameplay frame rate.
+
 ## Downloads and setup
 
 Published builds belong on this fork's [releases page](https://github.com/zortos293/Eglantine/releases). The repository still uses its historical Eglantine name; the desktop application is now Lichii.
