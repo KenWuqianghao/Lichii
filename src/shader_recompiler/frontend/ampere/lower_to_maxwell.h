@@ -25,9 +25,17 @@ enum class TessellationStage {
     Evaluation,
 };
 
+// How HMMA lowers: a software collective the backend expands (Compact), an inline shuffle
+// expansion (Expand), or a lowering failure (Reject).
+enum class MatrixMultiply {
+    Expand,
+    Compact,
+    Reject,
+};
+
 struct LoweringOptions {
     bool geometry{};
-    bool tensor{};
+    MatrixMultiply matrix_multiply = MatrixMultiply::Expand;
     u64 native_code_address{};
     std::span<const u32> verified_traps{};
     TessellationStage tessellation_stage = TessellationStage::None;
@@ -52,7 +60,8 @@ struct LoweredProgram {
 // native bytes. Scheduling/control words are added by the environment adapter.
 inline LoweredProgram LowerToMaxwellWith(std::span<const Instruction> code, u32 high_uniforms,
                                         LoweringOptions options = {}) {
-    const bool geometry_stage = options.geometry, compact_matrix = options.tensor;
+    const bool geometry_stage = options.geometry;
+    const auto matrix_multiply = options.matrix_multiply;
     const auto verified_traps = options.verified_traps;
     const auto tessellation_stage = options.tessellation_stage;
     const u64 native_code_address = options.native_code_address;
@@ -1768,6 +1777,8 @@ inline LoweredProgram LowerToMaxwellWith(std::span<const Instruction> code, u32 
             break;
         }
         case 0x23c: { // HMMA.1688/.16816.F16, software warp expansion (no tensor extension required).
+            if (matrix_multiply == MatrixMultiply::Reject)
+                return fail(index, "native matrix multiply");
             const u32 a = insn.Bits(24, 8), b = insn.Bits(32, 8), c = insn.Bits(64, 8);
             const u32 mode = insn.words[2] & ~0xffU;
             const u32 depth = mode == 0 ? 8U : 16U;
@@ -1778,7 +1789,7 @@ inline LoweredProgram LowerToMaxwellWith(std::span<const Instruction> code, u32 
                 dest % 2 || dest + 2 > limit || a % a_count || a + a_count > limit ||
                 b % b_count || b + b_count > limit || (c != 255 && (c % 2 || c + 2 > limit)))
                 return fail(index, "native half matrix multiply mode");
-            if (compact_matrix) {
+            if (matrix_multiply == MatrixMultiply::Compact) {
                 // A software collective, not an NV cooperative-matrix operation. The backend
                 // shares a bounded loop helper instead of duplicating hundreds of instructions
                 // at every HMMA site. Bit 48 tags software; bit 49 selects K=8 rather than K=16.
@@ -3988,7 +3999,9 @@ inline LoweredProgram LowerToMaxwellWith(std::span<const Instruction> code, u32 
                                         std::span<const u32> verified_traps = {},
                                         TessellationStage tessellation_stage = TessellationStage::None) {
     return LowerToMaxwellWith(code, high_uniforms,
-                             {.geometry = geometry_stage, .tensor = compact_matrix,
+                             {.geometry = geometry_stage,
+                              .matrix_multiply = compact_matrix ? MatrixMultiply::Compact
+                                                                : MatrixMultiply::Expand,
                               .verified_traps = verified_traps,
                               .tessellation_stage = tessellation_stage});
 }
@@ -3997,7 +4010,9 @@ inline LoweredProgram LowerToMaxwell(std::span<const Instruction> code, bool geo
                                     bool compact_matrix = false,
                                     std::span<const u32> verified_traps = {},
                                     TessellationStage tessellation_stage = TessellationStage::None) {
-    return LowerToMaxwell(code, {.geometry = geometry_stage, .tensor = compact_matrix,
+    return LowerToMaxwell(code, {.geometry = geometry_stage,
+                                .matrix_multiply = compact_matrix ? MatrixMultiply::Compact
+                                                                  : MatrixMultiply::Expand,
                                 .verified_traps = verified_traps,
                                 .tessellation_stage = tessellation_stage});
 }

@@ -540,7 +540,7 @@ std::shared_ptr<const LoweredNativeCode> GenericEnvironment::LowerNativeCode(u32
                                        : Shader::Ampere::TessellationStage::None;
     auto lowered = Shader::Ampere::LowerToMaxwell(
         native, {.geometry = geometry_stage,
-                 .tensor = true,
+                 .matrix_multiply = Shader::Ampere::MatrixMultiply::Compact,
                  .native_code_address = program_base + native_header_size,
                  .verified_traps = verified_traps,
                  .tessellation_stage = tessellation_stage});
