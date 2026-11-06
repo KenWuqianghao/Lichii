@@ -228,7 +228,9 @@ void PhysicalCore::Idle(KernelCore& kernel) {
     // Guest job systems hand work between cores many times per frame; blocking at once adds the
     // host's thread wake-up latency to every handoff. EDEN_NX2_IDLE_SPIN_US=<n>: poll for that
     // many microseconds before blocking. Switch 2 titles poll 100 us by default outside Android
-    // (title 1's frames: 42 ms without, 35 ms with 50 us, 34 ms with 100 us, 36 ms with 300 us).
+    // (title 1's frames: 42 ms without, 35 ms with 50 us, 34 ms with 100 us, 36 ms with 300 us),
+    // except on hosts with 8 or fewer threads, where the poll takes CPU time from the emulator's
+    // other busy threads (NX2_NOTES.md row 151).
     static const long long spin_setting = [] {
         const char* text = std::getenv("EDEN_NX2_IDLE_SPIN_US");
         return text ? std::strtoll(text, nullptr, 10) : -1LL;
@@ -238,8 +240,10 @@ void PhysicalCore::Idle(KernelCore& kernel) {
 #ifdef __ANDROID__
         spin_us = 0;
 #else
+        static const unsigned host_threads = std::thread::hardware_concurrency();
         const KProcess* process = kernel.ApplicationProcess();
-        spin_us = process != nullptr && process->IsSwitch2() ? 100 : 0;
+        const bool switch2 = process != nullptr && process->IsSwitch2();
+        spin_us = switch2 && host_threads > 8 ? 100 : 0;
 #endif
     }
     const auto spin = std::chrono::microseconds{spin_us};
